@@ -1,5 +1,3 @@
-// Prisma schema for "Мобильный Обходчик" — Phase 1 MVP
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
+enum Role {
   WORKER
   MANAGER
   ADMIN
@@ -43,7 +41,7 @@ enum CheckpointStatus {
   SKIPPED
 }
 
-enum DefectSeverity {
+enum Severity {
   LOW
   MEDIUM
   HIGH
@@ -58,198 +56,138 @@ enum DefectStatus {
 }
 
 model User {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   name          String
   email         String   @unique
-  passwordHash  String
-  role          UserRole @default(WORKER)
-  employeeId    String   @unique
-  department    String
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  password_hash String
+  role          Role     @default(WORKER)
+  employee_id   String   @unique
+  department    String?
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
-  schedulesAssigned    Schedule[]   @relation("ScheduleWorker")
-  schedulesCreated     Schedule[]   @relation("ScheduleCreator")
-  inspections          Inspection[]
-  defectsReported      Defect[]     @relation("DefectReporter")
-  defectsResolved      Defect[]     @relation("DefectResolver")
-  filesUploaded        File[]
-  auditEntries         AuditLog[]
+  schedules_worker  Schedule[]   @relation("WorkerSchedules")
+  schedules_created Schedule[]   @relation("CreatedSchedules")
+  inspections       Inspection[]
+  reported_defects  Defect[]     @relation("ReportedDefects")
+  resolved_defects  Defect[]     @relation("ResolvedDefects")
+}
 
-  @@index([role])
-  @@index([department])
+model Schedule {
+  id             String         @id @default(uuid())
+  worker_id      String
+  route_id       String
+  scheduled_date DateTime       @db.Date
+  shift          Shift
+  status         ScheduleStatus @default(PLANNED)
+  actual_start   DateTime?
+  actual_end     DateTime?
+  created_by     String
+  created_at     DateTime       @default(now())
+
+  worker      User         @relation("WorkerSchedules", fields: [worker_id], references: [id])
+  creator     User         @relation("CreatedSchedules", fields: [created_by], references: [id])
+  route       Route        @relation(fields: [route_id], references: [id])
+  inspections Inspection[]
 }
 
 model Route {
-  id                        String    @id @default(cuid())
-  name                      String
-  description               String
-  zone                      String
-  estimatedDurationMinutes  Int
-  mapGeoJSON                Json
-  isActive                  Boolean   @default(true)
-  createdAt                 DateTime  @default(now())
+  id                         String   @id @default(uuid())
+  name                       String
+  description                String?
+  zone                       String
+  estimated_duration_minutes Int
+  waypoints                  Json // JSONB - массив ID оборудования
+  map_geojson                Json // JSONB - SVG/карта цеха
+  is_active                  Boolean  @default(true)
+  created_at                 DateTime @default(now())
 
-  equipment   Equipment[]
   schedules   Schedule[]
+  equipment   Equipment[]
   inspections Inspection[]
 }
 
 model Equipment {
-  id                    String   @id @default(cuid())
-  name                  String
-  code                  String   @unique
-  type                  String
-  zone                  String
-  locationDescription   String
-  coordinates           Json
-  routeId               String?
-  route                 Route?   @relation(fields: [routeId], references: [id])
-  sequenceOrder         Int
-  checklistTemplate     Json
-  technicalSpecs        Json
-  maintenanceDocs       Json
-  isActive              Boolean  @default(true)
-  createdAt             DateTime @default(now())
+  id                   String   @id @default(uuid())
+  name                 String
+  code                 String   @unique
+  type                 String
+  zone                 String
+  location_description String?
+  coordinates          Json // JSONB {x, y} на карте
+  route_id             String
+  sequence_order       Int
+  checklist_template   Json // JSONB
+  technical_specs      Json? // JSONB
+  maintenance_docs     Json? // JSONB
+  is_active            Boolean  @default(true)
+  created_at           DateTime @default(now())
 
+  route       Route        @relation(fields: [route_id], references: [id])
   checkpoints Checkpoint[]
   defects     Defect[]
-
-  @@index([routeId])
-  @@index([zone])
-}
-
-model Schedule {
-  id             String         @id @default(cuid())
-  workerId       String
-  worker         User           @relation("ScheduleWorker", fields: [workerId], references: [id])
-  routeId        String
-  route          Route          @relation(fields: [routeId], references: [id])
-  scheduledDate  DateTime       @db.Date
-  shift          Shift
-  status         ScheduleStatus @default(PLANNED)
-  actualStart    DateTime?
-  actualEnd      DateTime?
-  createdById    String
-  createdBy      User           @relation("ScheduleCreator", fields: [createdById], references: [id])
-  createdAt      DateTime       @default(now())
-
-  inspections Inspection[]
-
-  @@index([workerId, scheduledDate])
-  @@index([scheduledDate])
 }
 
 model Inspection {
-  id                    String           @id @default(cuid())
-  scheduleId            String
-  schedule              Schedule         @relation(fields: [scheduleId], references: [id])
-  workerId              String
-  worker                User             @relation(fields: [workerId], references: [id])
-  routeId               String
-  route                 Route            @relation(fields: [routeId], references: [id])
+  id                    String           @id @default(uuid())
+  schedule_id           String
+  worker_id             String
+  route_id              String
   status                InspectionStatus @default(STARTED)
-  startedAt             DateTime         @default(now())
-  completedAt           DateTime?
-  totalCheckpoints      Int              @default(0)
-  completedCheckpoints  Int              @default(0)
-  hasDefects            Boolean          @default(false)
+  started_at            DateTime         @default(now())
+  completed_at          DateTime?
+  total_checkpoints     Int
+  completed_checkpoints Int              @default(0)
+  has_defects           Boolean          @default(false)
   notes                 String?
-  offlineSyncId         String?          @unique
-  createdAt             DateTime         @default(now())
+  offline_sync_id       String?          @unique @db.Uuid // Защита от дублей при оффлайн-синке
+  created_at            DateTime         @default(now())
 
+  schedule    Schedule     @relation(fields: [schedule_id], references: [id])
+  worker      User         @relation(fields: [worker_id], references: [id])
+  route       Route        @relation(fields: [route_id], references: [id])
   checkpoints Checkpoint[]
   defects     Defect[]
-
-  @@index([workerId])
-  @@index([scheduleId])
-  @@index([status])
 }
 
 model Checkpoint {
-  id               String           @id @default(cuid())
-  inspectionId     String
-  inspection       Inspection       @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  equipmentId      String
-  equipment        Equipment        @relation(fields: [equipmentId], references: [id])
-  sequenceOrder    Int
+  id               String           @id @default(uuid())
+  inspection_id    String
+  equipment_id     String
+  sequence_order   Int
   status           CheckpointStatus @default(PENDING)
-  measurements     Json             @default("{}")
+  measurements     Json? // JSONB { "temp": 85, "vib": 1.2 }
   notes            String?
-  photos           Json             @default("[]")
-  hasDefect        Boolean          @default(false)
-  inspectedAt      DateTime?
-  durationSeconds  Int?
-  offlineSyncId    String?          @unique
-  createdAt        DateTime         @default(now())
+  photos           Json? // JSONB
+  has_defect       Boolean          @default(false)
+  inspected_at     DateTime?
+  duration_seconds Int?
 
-  defects Defect[]
-
-  @@unique([inspectionId, equipmentId])
-  @@index([inspectionId])
+  inspection Inspection @relation(fields: [inspection_id], references: [id])
+  equipment  Equipment  @relation(fields: [equipment_id], references: [id])
+  defects    Defect[]
 }
 
 model Defect {
-  id               String         @id @default(cuid())
-  checkpointId     String?
-  checkpoint       Checkpoint?    @relation(fields: [checkpointId], references: [id])
-  equipmentId      String
-  equipment        Equipment      @relation(fields: [equipmentId], references: [id])
-  inspectionId     String?
-  inspection       Inspection?    @relation(fields: [inspectionId], references: [id])
-  reportedById     String
-  reportedBy       User           @relation("DefectReporter", fields: [reportedById], references: [id])
-  severity         DefectSeverity
-  description      String?
-  photos           Json           @default("[]")
-  status           DefectStatus   @default(OPEN)
-  resolutionNotes  String?
-  resolvedById     String?
-  resolvedBy       User?          @relation("DefectResolver", fields: [resolvedById], references: [id])
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  resolvedAt       DateTime?
+  id               String       @id @default(uuid())
+  checkpoint_id    String?
+  equipment_id     String
+  inspection_id    String?
+  reported_by      String
+  severity         Severity
+  description      String
+  photos           Json? // JSONB
+  status           DefectStatus @default(OPEN)
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @updatedAt
+  resolved_at      DateTime?
+  resolved_by      String?
+  resolution_notes String?
 
-  @@index([status])
-  @@index([equipmentId])
-  @@index([severity])
-}
-
-model File {
-  id            String   @id @default(cuid())
-  filename      String
-  originalName  String
-  mimeType      String
-  sizeBytes     Int
-  storagePath   String
-  uploadedById  String
-  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
-  createdAt     DateTime @default(now())
-}
-
-model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
-  action      String
-  entityType  String
-  entityId    String
-  payload     Json?
-  ipAddress   String?
-  createdAt   DateTime @default(now())
-
-  @@index([entityType, entityId])
-  @@index([createdAt])
-}
-
-model RefreshToken {
-  id         String   @id @default(cuid())
-  userId     String
-  tokenHash  String   @unique
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  createdAt  DateTime @default(now())
-
-  @@index([userId])
+  checkpoint Checkpoint? @relation(fields: [checkpoint_id], references: [id])
+  equipment  Equipment   @relation(fields: [equipment_id], references: [id])
+  inspection Inspection? @relation(fields: [inspection_id], references: [id])
+  reporter   User        @relation("ReportedDefects", fields: [reported_by], references: [id])
+  resolver   User?       @relation("ResolvedDefects", fields: [resolved_by], references: [id])
 }
