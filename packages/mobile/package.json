@@ -2,25 +2,13 @@
   "name": "@mobilny-obhodchik/mobile",
   "version": "1.0.0",
   "private": true,
-  "main": "index.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "echo 'Mobile app - Phase 2'"
   },
   "dependencies": {
-    "expo": "^50.0.0",
-    "react": "^18.2.0",
-    "react-native": "^0.73.0",
-    "@react-navigation/native": "^6.1.0",
-    "@react-navigation/bottom-tabs": "^6.5.0",
-    "@react-navigation/stack": "^6.3.0",
     "zustand": "^4.5.0",
     "axios": "^1.6.8",
-    "expo-camera": "^14.1.0",
-    "react-native-svg": "^14.1.0",
     "zod": "^3.23.8",
     "@mobilny-obhodchik/shared": "workspace:*"
   },
