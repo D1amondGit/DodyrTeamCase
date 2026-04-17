@@ -42,6 +42,29 @@ export class ScheduleRepository {
     });
   }
 
+  findDayPlanForWorker(workerId: string, day: Date) {
+    const from = new Date(day);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(from);
+    to.setDate(from.getDate() + 1);
+
+    return this.prisma.schedule.findMany({
+      where: {
+        workerId,
+        scheduledDate: { gte: from, lt: to },
+      },
+      include: {
+        route: {
+          include: {
+            equipment: { where: { isActive: true }, orderBy: { sequenceOrder: 'asc' } },
+          },
+        },
+        inspections: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+      orderBy: [{ scheduledDate: 'asc' }, { shift: 'asc' }],
+    });
+  }
+
   create(data: {
     workerId: string;
     routeId: string;

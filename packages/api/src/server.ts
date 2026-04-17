@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'node:path';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { config } from './config.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
@@ -10,6 +12,7 @@ import { authRoutes } from './modules/auth.routes.js';
 import { inspectionRoutes } from './modules/inspections.routes.js';
 import { defectRoutes } from './modules/defects.routes.js';
 import { API_PREFIX } from '@mobilny-obhodchik/shared';
+import { fileRoutes } from './modules/files.routes.js';
 
 const app = Fastify({
   logger: { transport: { target: 'pino-pretty' } },
@@ -22,6 +25,11 @@ async function buildServer() {
   // Плагины
   await app.register(cors, { origin: config.CORS_ORIGINS });
   await app.register(multipart, { limits: { fileSize: config.MAX_UPLOAD_MB * 1024 * 1024 } });
+  await app.register(fastifyStatic, {
+    root: path.resolve(config.STORAGE_LOCAL_PATH),
+    prefix: `${API_PREFIX}/files/`,
+    decorateReply: false,
+  });
   
   registerErrorHandler(app);
   await registerSwagger(app);
@@ -31,6 +39,7 @@ async function buildServer() {
   await app.register(authRoutes, { prefix: `${API_PREFIX}/auth` });
   await app.register(inspectionRoutes, { prefix: `${API_PREFIX}/inspections` });
   await app.register(defectRoutes, { prefix: `${API_PREFIX}/defects` });
+  await app.register(fileRoutes, { prefix: `${API_PREFIX}/files` });
 
   app.get('/health', async () => ({ status: 'ok', time: new Date().toISOString() }));
 

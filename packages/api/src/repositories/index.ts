@@ -6,6 +6,7 @@ import { RouteRepository } from './route.repository.js';
 import { InspectionRepository } from './inspection.repository.js';
 import { CheckpointRepository } from './checkpoint.repository.js';
 import { DefectRepository } from './defect.repository.js';
+import { FileRepository } from './file.repository.js';
 
 export const repositories = {
   users: new UserRepository(prisma),
@@ -15,6 +16,7 @@ export const repositories = {
   inspections: new InspectionRepository(prisma),
   checkpoints: new CheckpointRepository(prisma),
   defects: new DefectRepository(prisma),
+  files: new FileRepository(prisma),
 };
 
 export type Repositories = typeof repositories;
