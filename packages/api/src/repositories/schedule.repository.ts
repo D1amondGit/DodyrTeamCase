@@ -1,4 +1,4 @@
-import type { PrismaClient, Schedule } from '@prisma/client';
+﻿import type { PrismaClient } from '@prisma/client';
 
 export class ScheduleRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -10,15 +10,15 @@ export class ScheduleRepository {
     });
   }
 
-  findByDateRange(from: Date, to: Date, workerId?: string): Promise<Schedule[]> {
+  findByDateRange(from: Date, to: Date, workerId?: string) {
     return this.prisma.schedule.findMany({
       where: {
-        scheduledDate: { gte: from, lte: to },
-        ...(workerId ? { workerId } : {}),
+        scheduled_date: { gte: from, lte: to },
+        ...(workerId ? { worker_id: workerId } : {}),
       },
       include: { route: true, worker: true },
-      orderBy: [{ scheduledDate: 'asc' }, { shift: 'asc' }],
-    }) as unknown as Promise<Schedule[]>;
+      orderBy: [{ scheduled_date: 'asc' }, { shift: 'asc' }],
+    });
   }
 
   findTodayFor(workerId: string) {
@@ -28,16 +28,16 @@ export class ScheduleRepository {
     tomorrow.setDate(today.getDate() + 1);
     return this.prisma.schedule.findFirst({
       where: {
-        workerId,
-        scheduledDate: { gte: today, lt: tomorrow },
+        worker_id: workerId,
+        scheduled_date: { gte: today, lt: tomorrow },
       },
       include: {
         route: {
           include: {
-            equipment: { orderBy: { sequenceOrder: 'asc' } },
+            equipment: { orderBy: { sequence_order: 'asc' } },
           },
         },
-        inspections: { orderBy: { createdAt: 'desc' }, take: 1 },
+        inspections: { orderBy: { created_at: 'desc' }, take: 1 },
       },
     });
   }
@@ -50,18 +50,18 @@ export class ScheduleRepository {
 
     return this.prisma.schedule.findMany({
       where: {
-        workerId,
-        scheduledDate: { gte: from, lt: to },
+        worker_id: workerId,
+        scheduled_date: { gte: from, lt: to },
       },
       include: {
         route: {
           include: {
-            equipment: { where: { isActive: true }, orderBy: { sequenceOrder: 'asc' } },
+            equipment: { where: { is_active: true }, orderBy: { sequence_order: 'asc' } },
           },
         },
-        inspections: { orderBy: { createdAt: 'desc' }, take: 1 },
+        inspections: { orderBy: { created_at: 'desc' }, take: 1 },
       },
-      orderBy: [{ scheduledDate: 'asc' }, { shift: 'asc' }],
+      orderBy: [{ scheduled_date: 'asc' }, { shift: 'asc' }],
     });
   }
 
@@ -72,7 +72,15 @@ export class ScheduleRepository {
     shift: 'MORNING' | 'AFTERNOON' | 'NIGHT';
     createdById: string;
   }) {
-    return this.prisma.schedule.create({ data });
+    return this.prisma.schedule.create({
+      data: {
+        worker_id: data.workerId,
+        route_id: data.routeId,
+        scheduled_date: data.scheduledDate,
+        shift: data.shift,
+        created_by: data.createdById,
+      },
+    });
   }
 
   updateStatus(
@@ -82,7 +90,11 @@ export class ScheduleRepository {
   ) {
     return this.prisma.schedule.update({
       where: { id },
-      data: { status, ...extra },
+      data: {
+        status,
+        ...(extra?.actualStart ? { actual_start: extra.actualStart } : {}),
+        ...(extra?.actualEnd ? { actual_end: extra.actualEnd } : {}),
+      },
     });
   }
 }

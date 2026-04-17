@@ -1,9 +1,10 @@
-import type { PrismaClient, DefectStatus, Severity } from '@prisma/client';
+﻿import type { Prisma, PrismaClient } from '@prisma/client';
+import type { DefectStatus, DefectSeverity } from '@mobilny-obhodchik/shared';
 
 export class DefectRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  list(filter?: { status?: DefectStatus; severity?: Severity; workerId?: string }) {
+  list(filter?: { status?: DefectStatus; severity?: DefectSeverity; workerId?: string }) {
     return this.prisma.defect.findMany({
       where: {
         ...(filter?.status ? { status: filter.status } : {}),
@@ -36,7 +37,7 @@ export class DefectRepository {
     equipment_id: string;
     inspection_id?: string | null;
     reported_by: string;
-    severity: Severity;
+    severity: DefectSeverity;
     description: string;
     photos?: unknown[];
   }) {
@@ -48,7 +49,7 @@ export class DefectRepository {
         reported_by: data.reported_by,
         severity: data.severity,
         description: data.description,
-        photos: data.photos ?? [],
+        photos: (data.photos ?? []) as Prisma.InputJsonValue,
       },
     });
   }
@@ -70,3 +71,4 @@ export class DefectRepository {
     });
   }
 }
+

@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+﻿import type { Prisma, PrismaClient } from '@prisma/client';
 
 export class CheckpointRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -8,14 +8,13 @@ export class CheckpointRepository {
       where: { inspection_id: inspectionId, equipment_id: equipmentId },
     });
   }
-
   update(
     id: string,
     data: {
       status: 'OK' | 'WARNING' | 'CRITICAL' | 'SKIPPED';
-      measurements: object;
+      measurements: Prisma.InputJsonValue;
       notes?: string | null;
-      photos: unknown[];
+      photos: Prisma.InputJsonValue;
       hasDefect: boolean;
       inspectedAt: Date;
       durationSeconds?: number;
@@ -47,6 +46,7 @@ export class CheckpointRepository {
   anyWithDefect(inspectionId: string): Promise<boolean> {
     return this.prisma.checkpoint
       .count({ where: { inspection_id: inspectionId, has_defect: true } })
-      .then((c) => c > 0);
+      .then((c: number) => c > 0);
   }
 }
+

@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+﻿import type { PrismaClient } from '@prisma/client';
 
 export class AnalyticsService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -17,27 +17,27 @@ export class AnalyticsService {
       workersOnShift,
       totalEquipment,
     ] = await Promise.all([
-      this.prisma.inspection.count({ where: { startedAt: { gte: today, lt: tomorrow } } }),
+      this.prisma.inspection.count({ where: { started_at: { gte: today, lt: tomorrow } } }),
       this.prisma.inspection.count({
-        where: { startedAt: { gte: today, lt: tomorrow }, status: 'COMPLETED' },
+        where: { started_at: { gte: today, lt: tomorrow }, status: 'COMPLETED' },
       }),
       this.prisma.defect.count({ where: { status: { not: 'RESOLVED' } } }),
       this.prisma.defect.count({
         where: { status: { not: 'RESOLVED' }, severity: 'CRITICAL' },
       }),
       this.prisma.schedule.count({
-        where: { scheduledDate: { gte: today, lt: tomorrow } },
+        where: { scheduled_date: { gte: today, lt: tomorrow } },
       }),
-      this.prisma.equipment.count({ where: { isActive: true } }),
+      this.prisma.equipment.count({ where: { is_active: true } }),
     ]);
 
     const recent = await this.prisma.checkpoint.findMany({
-      where: { inspectedAt: { not: null } },
+      where: { inspected_at: { not: null } },
       take: 50,
-      orderBy: { inspectedAt: 'desc' },
+      orderBy: { inspected_at: 'desc' },
       select: { status: true },
     });
-    const healthy = recent.filter((c) => c.status === 'OK').length;
+    const healthy = recent.filter((c: { status: string }) => c.status === 'OK').length;
     const equipmentHealthScore =
       recent.length === 0 ? 100 : Math.round((healthy / recent.length) * 100);
 
@@ -58,8 +58,8 @@ export class AnalyticsService {
     from.setHours(0, 0, 0, 0);
 
     const inspections = await this.prisma.inspection.findMany({
-      where: { startedAt: { gte: from } },
-      select: { startedAt: true, status: true },
+      where: { started_at: { gte: from } },
+      select: { started_at: true, status: true },
     });
 
     const bucket = new Map<string, { planned: number; completed: number }>();
@@ -70,7 +70,7 @@ export class AnalyticsService {
       bucket.set(key, { planned: 0, completed: 0 });
     }
     for (const ins of inspections) {
-      const key = ins.startedAt.toISOString().slice(0, 10);
+      const key = ins.started_at.toISOString().slice(0, 10);
       const entry = bucket.get(key);
       if (!entry) continue;
       entry.planned += 1;
@@ -85,13 +85,13 @@ export class AnalyticsService {
       _count: true,
       where: { status: { not: 'RESOLVED' } },
     });
-    return groups.map((g) => ({ severity: g.severity, count: g._count }));
+    return groups.map((g: { severity: string; _count: number }) => ({ severity: g.severity, count: g._count }));
   }
 
   async equipmentHealth() {
     const equipment = await this.prisma.equipment.findMany({
-      where: { isActive: true },
-      orderBy: { sequenceOrder: 'asc' },
+      where: { is_active: true },
+      orderBy: { sequence_order: 'asc' },
     });
     const result: Array<{
       equipmentId: string;
@@ -103,15 +103,15 @@ export class AnalyticsService {
     }> = [];
     for (const eq of equipment) {
       const last = await this.prisma.checkpoint.findFirst({
-        where: { equipmentId: eq.id, inspectedAt: { not: null } },
-        orderBy: { inspectedAt: 'desc' },
-        select: { status: true, inspectedAt: true },
+        where: { equipment_id: eq.id, inspected_at: { not: null } },
+        orderBy: { inspected_at: 'desc' },
+        select: { status: true, inspected_at: true },
       });
       const activeDefects = await this.prisma.defect.count({
-        where: { equipmentId: eq.id, status: { not: 'RESOLVED' } },
+        where: { equipment_id: eq.id, status: { not: 'RESOLVED' } },
       });
       const status: 'OK' | 'WARNING' | 'CRITICAL' | 'UNKNOWN' =
-        !last || !last.inspectedAt
+        !last || !last.inspected_at
           ? 'UNKNOWN'
           : last.status === 'CRITICAL'
             ? 'CRITICAL'
@@ -123,7 +123,7 @@ export class AnalyticsService {
         code: eq.code,
         name: eq.name,
         status,
-        lastInspectedAt: last?.inspectedAt ? last.inspectedAt.toISOString() : null,
+        lastInspectedAt: last?.inspected_at ? last.inspected_at.toISOString() : null,
         activeDefects,
       });
     }
@@ -134,26 +134,26 @@ export class AnalyticsService {
     const since = new Date();
     since.setDate(since.getDate() - 30);
     const workers = await this.prisma.user.findMany({
-      where: { role: 'WORKER', isActive: true },
+      where: { role: 'WORKER', is_active: true },
       orderBy: { name: 'asc' },
     });
     const result = [];
     for (const w of workers) {
       const inspections = await this.prisma.inspection.findMany({
-        where: { workerId: w.id, startedAt: { gte: since } },
+        where: { worker_id: w.id, started_at: { gte: since } },
       });
-      const completed = inspections.filter((i) => i.status === 'COMPLETED');
+      const completed = inspections.filter((i: { status: string }) => i.status === 'COMPLETED');
       const defects = await this.prisma.defect.count({
-        where: { reportedById: w.id, createdAt: { gte: since } },
+        where: { reported_by: w.id, created_at: { gte: since } },
       });
       const avgMinutes =
         completed.length === 0
           ? 0
           : Math.round(
               completed.reduce(
-                (acc, i) =>
+                (acc: number, i: { completed_at: Date | null; started_at: Date }) =>
                   acc +
-                  (i.completedAt ? (i.completedAt.getTime() - i.startedAt.getTime()) / 60000 : 0),
+                  (i.completed_at ? (i.completed_at.getTime() - i.started_at.getTime()) / 60000 : 0),
                 0,
               ) / completed.length,
             );
@@ -173,7 +173,7 @@ export class AnalyticsService {
     const since = new Date();
     since.setDate(since.getDate() - 30);
     const defects = await this.prisma.defect.findMany({
-      where: { createdAt: { gte: since } },
+      where: { created_at: { gte: since } },
       include: { equipment: { select: { name: true, code: true, zone: true } } },
     });
     const byEquipment = new Map<string, { name: string; code: string; count: number }>();
@@ -195,12 +195,12 @@ export class AnalyticsService {
     const since = new Date();
     since.setDate(since.getDate() - 30);
     const schedules = await this.prisma.schedule.findMany({
-      where: { scheduledDate: { gte: since } },
-      select: { id: true, scheduledDate: true, status: true },
+      where: { scheduled_date: { gte: since } },
+      select: { id: true, scheduled_date: true, status: true },
     });
     const bucket = new Map<string, { planned: number; completed: number; missed: number }>();
     for (const s of schedules) {
-      const key = s.scheduledDate.toISOString().slice(0, 10);
+      const key = s.scheduled_date.toISOString().slice(0, 10);
       const entry = bucket.get(key) ?? { planned: 0, completed: 0, missed: 0 };
       entry.planned += 1;
       if (s.status === 'COMPLETED') entry.completed += 1;

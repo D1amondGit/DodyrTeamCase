@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+﻿import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -46,6 +46,14 @@ export class FileRepository {
     );
   }
 
+  async create(record: Omit<FileRecord, 'createdAt'>): Promise<FileRecord> {
+    await this.ensureLoaded();
+    const fullRecord: FileRecord = { ...record, createdAt: new Date().toISOString() };
+    this.records.set(fullRecord.id, fullRecord);
+    await this.persist();
+    return fullRecord;
+  }
+
   async save(file: {
     originalName: string;
     mimeType: string;
@@ -90,4 +98,3 @@ export class FileRepository {
     }
   }
 }
-

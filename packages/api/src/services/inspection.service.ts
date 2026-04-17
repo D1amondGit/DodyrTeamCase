@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+﻿import type { Prisma } from '@prisma/client';
 import type { InspectionRepository } from '../repositories/inspection.repository.js';
 import type { CheckpointRepository } from '../repositories/checkpoint.repository.js';
 import type { ScheduleRepository } from '../repositories/schedule.repository.js';
@@ -29,7 +29,7 @@ export class InspectionService {
 
   async getRouteForWorker(workerId: string, routeId: string, date?: string) {
     const dayPlan = await this.getDailyPlan(workerId, date);
-    const assigned = dayPlan.find((schedule) => schedule.routeId === routeId);
+    const assigned = dayPlan.find((schedule) => schedule.route_id === routeId);
     if (!assigned) {
       throw Errors.Forbidden('Маршрут не назначен сотруднику на выбранную дату');
     }
@@ -38,12 +38,12 @@ export class InspectionService {
 
   async identifyEquipment(workerId: string, code: string, date?: string) {
     const equipment = await this.equipment.findByCode(code);
-    if (!equipment || !equipment.routeId) {
+    if (!equipment || !equipment.route_id) {
       throw Errors.NotFound('Оборудование');
     }
 
     const dayPlan = await this.getDailyPlan(workerId, date);
-    const isAssigned = dayPlan.some((schedule) => schedule.routeId === equipment.routeId);
+    const isAssigned = dayPlan.some((schedule) => schedule.route_id === equipment.route_id);
     if (!isAssigned) {
       throw Errors.Forbidden('Оборудование не входит в маршрут сотрудника');
     }
@@ -52,11 +52,11 @@ export class InspectionService {
   }
 
   async start(workerId: string, scheduleId: string, offlineSyncId?: string) {
-    // Idempotency via offline_sync_id — the source of truth for retries.
+    // Idempotency via offline_sync_id - the source of truth for retries.
     if (offlineSyncId) {
       const existing = await this.inspections.findByOfflineSyncId(offlineSyncId);
       if (existing) {
-        if (existing.workerId !== workerId) {
+        if (existing.worker_id !== workerId) {
           throw Errors.Forbidden('offline_sync_id принадлежит другому пользователю');
         }
         return this.inspections.findById(existing.id);
@@ -65,11 +65,11 @@ export class InspectionService {
 
     const schedule = await this.schedules.findById(scheduleId);
     if (!schedule) throw Errors.NotFound('Расписание');
-    if (schedule.workerId !== workerId) {
+    if (schedule.worker_id !== workerId) {
       throw Errors.Forbidden('Это не ваше расписание');
     }
 
-    const routeEquipment = await this.equipment.findByRoute(schedule.routeId);
+    const routeEquipment = await this.equipment.findByRoute(schedule.route_id);
     if (routeEquipment.length === 0) {
       throw Errors.BadRequest('В маршруте нет оборудования');
     }
@@ -77,12 +77,12 @@ export class InspectionService {
     const inspection = await this.inspections.create({
       scheduleId,
       workerId,
-      routeId: schedule.routeId,
+      routeId: schedule.route_id,
       totalCheckpoints: routeEquipment.length,
       offlineSyncId,
       checkpointSeeds: routeEquipment.map((e) => ({
         equipmentId: e.id,
-        sequenceOrder: e.sequenceOrder,
+        sequenceOrder: e.sequence_order,
       })),
     });
 
@@ -102,14 +102,9 @@ export class InspectionService {
     inspectionId: string,
     input: CheckpointInput,
   ) {
-    if (input.offlineSyncId) {
-      const existing = await this.checkpoints.findByOfflineSyncId(input.offlineSyncId);
-      if (existing) return existing;
-    }
-
     const inspection = await this.inspections.findById(inspectionId);
     if (!inspection) throw Errors.NotFound('Обход');
-    if (inspection.workerId !== workerId) throw Errors.Forbidden('Это не ваш обход');
+    if (inspection.worker_id !== workerId) throw Errors.Forbidden('Это не ваш обход');
     if (inspection.status === 'COMPLETED') {
       throw Errors.BadRequest('Обход уже завершён, изменения запрещены');
     }
@@ -129,11 +124,10 @@ export class InspectionService {
       status: input.status,
       measurements: input.measurements as Prisma.InputJsonValue,
       notes: input.notes ?? null,
-      photos: (input.photoIds ?? []) as unknown as Prisma.InputJsonValue,
+      photos: (input.photoIds ?? []) as Prisma.InputJsonValue,
       hasDefect,
       inspectedAt: input.inspectedAt ? new Date(input.inspectedAt) : new Date(),
       durationSeconds: input.durationSeconds,
-      offlineSyncId: input.offlineSyncId,
     });
 
     const completedCount = await this.checkpoints.countCompleted(inspectionId);
@@ -168,18 +162,19 @@ export class InspectionService {
   async complete(workerId: string, inspectionId: string, notes?: string, completedAt?: string) {
     const inspection = await this.inspections.findById(inspectionId);
     if (!inspection) throw Errors.NotFound('Обход');
-    if (inspection.workerId !== workerId) throw Errors.Forbidden('Это не ваш обход');
+    if (inspection.worker_id !== workerId) throw Errors.Forbidden('Это не ваш обход');
 
     const when = completedAt ? new Date(completedAt) : new Date();
     await this.inspections.markCompleted(inspectionId, notes, when);
-    await this.schedules.updateStatus(inspection.scheduleId, 'COMPLETED', { actualEnd: when });
+    await this.schedules.updateStatus(inspection.schedule_id, 'COMPLETED', { actualEnd: when });
 
     eventBus.publish({
       name: 'inspection.completed',
       actorId: workerId,
-      payload: { inspectionId, hasDefects: inspection.hasDefects },
+      payload: { inspectionId, hasDefects: inspection.has_defects },
     });
 
     return this.inspections.findById(inspectionId);
   }
 }
+

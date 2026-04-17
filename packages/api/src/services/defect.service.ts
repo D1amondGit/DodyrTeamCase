@@ -1,5 +1,4 @@
-import type { Prisma } from '@prisma/client';
-import type { DefectRepository } from '../repositories/defect.repository.js';
+﻿import type { DefectRepository } from '../repositories/defect.repository.js';
 import { Errors } from '../errors.js';
 import { eventBus } from '../events/event-bus.js';
 import { DefectSeverity, DefectStatus } from '@mobilny-obhodchik/shared';
@@ -17,19 +16,19 @@ export class DefectService {
     }
 
     const defect = await this.defects.create({
-      checkpointId: input.checkpointId ?? null,
-      equipmentId: input.equipmentId,
-      inspectionId: input.inspectionId ?? null,
-      reportedById: reporterId,
+      checkpoint_id: input.checkpointId ?? null,
+      equipment_id: input.equipmentId,
+      inspection_id: input.inspectionId ?? null,
+      reported_by: reporterId,
       severity: input.severity,
-      description: input.description ?? null,
-      photos: (input.photoIds ?? []) as unknown as Prisma.InputJsonValue,
+      description: input.description ?? '',
+      photos: input.photoIds ?? [],
     });
 
     eventBus.publish({
       name: 'defect.reported',
       actorId: reporterId,
-      payload: { defectId: defect.id, severity: defect.severity, equipmentId: defect.equipmentId },
+      payload: { defectId: defect.id, severity: defect.severity, equipmentId: defect.equipment_id },
     });
 
     return defect;
