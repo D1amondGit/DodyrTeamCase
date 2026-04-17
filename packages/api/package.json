@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json && pnpm run copy-assets",
+    "build": "tsc -p tsconfig.json",
     "copy-assets": "node -e \"require('fs').cpSync('prisma','dist/prisma',{recursive:true})\"",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",

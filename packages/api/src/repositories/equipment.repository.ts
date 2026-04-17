@@ -17,6 +17,13 @@ export class EquipmentRepository {
     });
   }
 
+  findByCode(code: string) {
+    return this.prisma.equipment.findUnique({
+      where: { code },
+      include: { route: true },
+    });
+  }
+
   findByRoute(routeId: string) {
     return this.prisma.equipment.findMany({
       where: { routeId, isActive: true },

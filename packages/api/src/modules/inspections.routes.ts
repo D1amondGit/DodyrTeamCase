@@ -5,6 +5,7 @@ import {
   checkpointInputSchema,
   completeInspectionInputSchema,
 } from '@mobilny-obhodchik/shared';
+import { z } from 'zod';
 import { repositories } from '../repositories/index.js';
 import { InspectionService } from '../services/inspection.service.js';
 import { SyntheticToirAdapter } from '../adapters/toir/toir-synthetic.adapter.js';
@@ -23,6 +24,61 @@ export async function inspectionRoutes(app: FastifyInstance) {
   // Все роуты обходов требуют авторизации рабочего
   typedApp.addHook('preValidation', app.authenticate);
   typedApp.addHook('preValidation', app.requireRole('WORKER'));
+
+  typedApp.get(
+    '/daily-plan',
+    {
+      schema: {
+        querystring: z.object({
+          date: z.string().date().optional(),
+        }),
+      },
+    },
+    async (request) => {
+      const data = await inspectionService.getDailyPlan(request.user.sub, request.query.date);
+      return { success: true, data };
+    },
+  );
+
+  typedApp.get(
+    '/routes/:routeId',
+    {
+      schema: {
+        params: z.object({ routeId: z.string() }),
+        querystring: z.object({
+          date: z.string().date().optional(),
+        }),
+      },
+    },
+    async (request) => {
+      const data = await inspectionService.getRouteForWorker(
+        request.user.sub,
+        request.params.routeId,
+        request.query.date,
+      );
+      return { success: true, data };
+    },
+  );
+
+  typedApp.get(
+    '/equipment/by-code/:code',
+    {
+      schema: {
+        params: z.object({ code: z.string().min(1) }),
+        querystring: z.object({
+          date: z.string().date().optional(),
+        }),
+      },
+    },
+    async (request) => {
+      const data = await inspectionService.identifyEquipment(
+        request.user.sub,
+        request.params.code,
+        request.query.date,
+      );
+      return { success: true, data };
+    },
+  );
 
   typedApp.post(
     '/start',

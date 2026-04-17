@@ -18,6 +18,39 @@ export class InspectionService {
     private readonly toir: IToirAdapter,
   ) {}
 
+  async getDailyPlan(workerId: string, date?: string) {
+    const day = date ? new Date(date) : new Date();
+    if (Number.isNaN(day.getTime())) {
+      throw Errors.Validation('Некорректная дата');
+    }
+
+    return this.schedules.findDayPlanForWorker(workerId, day);
+  }
+
+  async getRouteForWorker(workerId: string, routeId: string, date?: string) {
+    const dayPlan = await this.getDailyPlan(workerId, date);
+    const assigned = dayPlan.find((schedule) => schedule.routeId === routeId);
+    if (!assigned) {
+      throw Errors.Forbidden('Маршрут не назначен сотруднику на выбранную дату');
+    }
+    return assigned.route;
+  }
+
+  async identifyEquipment(workerId: string, code: string, date?: string) {
+    const equipment = await this.equipment.findByCode(code);
+    if (!equipment || !equipment.routeId) {
+      throw Errors.NotFound('Оборудование');
+    }
+
+    const dayPlan = await this.getDailyPlan(workerId, date);
+    const isAssigned = dayPlan.some((schedule) => schedule.routeId === equipment.routeId);
+    if (!isAssigned) {
+      throw Errors.Forbidden('Оборудование не входит в маршрут сотрудника');
+    }
+
+    return equipment;
+  }
+
   async start(workerId: string, scheduleId: string, offlineSyncId?: string) {
     // Idempotency via offline_sync_id — the source of truth for retries.
     if (offlineSyncId) {
