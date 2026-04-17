@@ -1,20 +1,20 @@
-import type { PrismaClient, DefectStatus, DefectSeverity, Prisma } from '@prisma/client';
+import type { PrismaClient, DefectStatus, Severity } from '@prisma/client';
 
 export class DefectRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  list(filter?: { status?: DefectStatus; severity?: DefectSeverity; workerId?: string }) {
+  list(filter?: { status?: DefectStatus; severity?: Severity; workerId?: string }) {
     return this.prisma.defect.findMany({
       where: {
         ...(filter?.status ? { status: filter.status } : {}),
         ...(filter?.severity ? { severity: filter.severity } : {}),
-        ...(filter?.workerId ? { reportedById: filter.workerId } : {}),
+        ...(filter?.workerId ? { reported_by: filter.workerId } : {}),
       },
-      orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ severity: 'desc' }, { created_at: 'desc' }],
       include: {
         equipment: { select: { id: true, name: true, code: true, zone: true } },
-        reportedBy: { select: { id: true, name: true } },
-        resolvedBy: { select: { id: true, name: true } },
+        reporter: { select: { id: true, name: true } },
+        resolver: { select: { id: true, name: true } },
       },
     });
   }
@@ -24,23 +24,33 @@ export class DefectRepository {
       where: { id },
       include: {
         equipment: true,
-        reportedBy: { select: { id: true, name: true } },
-        resolvedBy: { select: { id: true, name: true } },
+        reporter: { select: { id: true, name: true } },
+        resolver: { select: { id: true, name: true } },
         checkpoint: true,
       },
     });
   }
 
   create(data: {
-    checkpointId?: string | null;
-    equipmentId: string;
-    inspectionId?: string | null;
-    reportedById: string;
-    severity: DefectSeverity;
-    description?: string | null;
-    photos: Prisma.InputJsonValue;
+    checkpoint_id?: string | null;
+    equipment_id: string;
+    inspection_id?: string | null;
+    reported_by: string;
+    severity: Severity;
+    description: string;
+    photos?: unknown[];
   }) {
-    return this.prisma.defect.create({ data });
+    return this.prisma.defect.create({
+      data: {
+        checkpoint_id: data.checkpoint_id ?? null,
+        equipment_id: data.equipment_id,
+        inspection_id: data.inspection_id ?? null,
+        reported_by: data.reported_by,
+        severity: data.severity,
+        description: data.description,
+        photos: data.photos ?? [],
+      },
+    });
   }
 
   updateStatus(
@@ -53,9 +63,9 @@ export class DefectRepository {
       where: { id },
       data: {
         status,
-        resolutionNotes: resolutionNotes ?? undefined,
-        resolvedById: status === 'RESOLVED' ? resolverId : undefined,
-        resolvedAt: status === 'RESOLVED' ? new Date() : null,
+        resolution_notes: resolutionNotes ?? null,
+        resolved_by: status === 'RESOLVED' ? resolverId : null,
+        resolved_at: status === 'RESOLVED' ? new Date() : null,
       },
     });
   }

@@ -1,15 +1,11 @@
-import type { PrismaClient, Prisma } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 
 export class CheckpointRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  findByOfflineSyncId(offlineSyncId: string) {
-    return this.prisma.checkpoint.findUnique({ where: { offlineSyncId } });
-  }
-
   findByInspectionAndEquipment(inspectionId: string, equipmentId: string) {
-    return this.prisma.checkpoint.findUnique({
-      where: { inspectionId_equipmentId: { inspectionId, equipmentId } },
+    return this.prisma.checkpoint.findFirst({
+      where: { inspection_id: inspectionId, equipment_id: equipmentId },
     });
   }
 
@@ -17,25 +13,32 @@ export class CheckpointRepository {
     id: string,
     data: {
       status: 'OK' | 'WARNING' | 'CRITICAL' | 'SKIPPED';
-      measurements: Prisma.InputJsonValue;
+      measurements: object;
       notes?: string | null;
-      photos: Prisma.InputJsonValue;
+      photos: unknown[];
       hasDefect: boolean;
       inspectedAt: Date;
       durationSeconds?: number;
-      offlineSyncId?: string;
     },
   ) {
     return this.prisma.checkpoint.update({
       where: { id },
-      data,
+      data: {
+        status: data.status,
+        measurements: data.measurements,
+        notes: data.notes,
+        photos: data.photos,
+        has_defect: data.hasDefect,
+        inspected_at: data.inspectedAt,
+        duration_seconds: data.durationSeconds ?? null,
+      },
     });
   }
 
   countCompleted(inspectionId: string): Promise<number> {
     return this.prisma.checkpoint.count({
       where: {
-        inspectionId,
+        inspection_id: inspectionId,
         status: { in: ['OK', 'WARNING', 'CRITICAL', 'SKIPPED'] },
       },
     });
@@ -43,7 +46,7 @@ export class CheckpointRepository {
 
   anyWithDefect(inspectionId: string): Promise<boolean> {
     return this.prisma.checkpoint
-      .count({ where: { inspectionId, hasDefect: true } })
+      .count({ where: { inspection_id: inspectionId, has_defect: true } })
       .then((c) => c > 0);
   }
 }

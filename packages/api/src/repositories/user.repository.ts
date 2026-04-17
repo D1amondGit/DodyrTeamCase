@@ -1,4 +1,4 @@
-import type { PrismaClient, User, UserRole as PrismaUserRole } from '@prisma/client';
+import type { PrismaClient, User, Role } from '@prisma/client';
 
 export class UserRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -11,7 +11,7 @@ export class UserRepository {
     return this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   }
 
-  list(filter?: { role?: PrismaUserRole; isActive?: boolean }): Promise<User[]> {
+  list(filter?: { role?: Role; is_active?: boolean }): Promise<User[]> {
     return this.prisma.user.findMany({
       where: filter,
       orderBy: [{ role: 'asc' }, { name: 'asc' }],
@@ -21,9 +21,9 @@ export class UserRepository {
   create(data: {
     email: string;
     name: string;
-    passwordHash: string;
-    role: PrismaUserRole;
-    employeeId: string;
+    password_hash: string;
+    role: Role;
+    employee_id: string;
     department: string;
   }): Promise<User> {
     return this.prisma.user.create({
@@ -36,19 +36,19 @@ export class UserRepository {
     data: Partial<{
       email: string;
       name: string;
-      passwordHash: string;
-      role: PrismaUserRole;
-      employeeId: string;
+      password_hash: string;
+      role: Role;
+      employee_id: string;
       department: string;
-      isActive: boolean;
+      is_active: boolean;
     }>,
   ): Promise<User> {
-    const payload: typeof data = { ...data };
+    const payload = { ...data };
     if (data.email) payload.email = data.email.toLowerCase();
     return this.prisma.user.update({ where: { id }, data: payload });
   }
 
   deactivate(id: string): Promise<User> {
-    return this.prisma.user.update({ where: { id }, data: { isActive: false } });
+    return this.prisma.user.update({ where: { id }, data: { is_active: false } });
   }
 }

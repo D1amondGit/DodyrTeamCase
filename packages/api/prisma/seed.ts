@@ -1,78 +1,110 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { SyntheticToirAdapter } from '../src/adapters/toir/toir-synthetic.adapter.js';
+import { DEMO_MANAGER, DEMO_WORKER } from '@mobilny-obhodchik/shared';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Начинаем заливать демо-данные...');
-  const passwordHash = await bcrypt.hash('Demo1234!', 10);
+  console.log('🌱 Seeding database...');
 
-  // 1. Создаем Менеджера
-  const manager = await prisma.user.upsert({
-    where: { email: 'manager@energoceh.ru' },
-    update: {},
-    create: {
-      name: 'Иван Петрович (Менеджер)',
-      email: 'manager@energoceh.ru',
-      password_hash: passwordHash,
+  // Clear tables
+  await prisma.inspection.deleteMany();
+  await prisma.checkpoint.deleteMany();
+  await prisma.defect.deleteMany();
+  await prisma.schedule.deleteMany();
+  await prisma.equipment.deleteMany();
+  await prisma.route.deleteMany();
+  await prisma.user.deleteMany();
+
+  // Create demo users
+  const managerPass = await bcrypt.hash(DEMO_MANAGER.password, 10);
+  const manager = await prisma.user.create({
+    data: {
+      name: 'Мастер Петров',
+      email: DEMO_MANAGER.email,
+      password_hash: managerPass,
       role: 'MANAGER',
       employee_id: 'MGR-001',
-      department: 'Энергоцех',
+      department: 'Управление',
     },
   });
 
-  // 2. Создаем Обходчика
-  const worker = await prisma.user.upsert({
-    where: { email: 'ivanov@energoceh.ru' },
-    update: {},
-    create: {
-      name: 'Иванов Алексей (Обходчик)',
-      email: 'ivanov@energoceh.ru',
-      password_hash: passwordHash,
+  const workerPass = await bcrypt.hash(DEMO_WORKER.password, 10);
+  const worker = await prisma.user.create({
+    data: {
+      name: 'Иванов Сергей',
+      email: DEMO_WORKER.email,
+      password_hash: workerPass,
       role: 'WORKER',
       employee_id: 'WRK-001',
-      department: 'Энергоцех',
+      department: 'Обслуживание',
     },
   });
 
-  // 3. Создаем Маршрут
-  const route = await prisma.route.create({
+  // Seed routes and equipment via TOIR adapter
+  const toir = new SyntheticToirAdapter();
+  const toirRoutes = await toir.getRoutes();
+  const toirEquipment = await toir.getEquipment();
+
+  const routes = await Promise.all(
+    toirRoutes.map((r) =>
+      prisma.route.create({
+        data: {
+          name: r.name,
+          description: r.description,
+          zone: r.zone,
+          estimated_duration_minutes: r.estimatedDurationMinutes,
+          map_geojson: r.mapGeoJSON,
+        },
+      }),
+    ),
+  );
+
+  const createdEquip = await Promise.all(
+    toirEquipment.map((e) =>
+      prisma.equipment.create({
+        data: {
+          name: e.name,
+          code: e.code,
+          type: e.type,
+          zone: e.zone,
+          location_description: e.locationDescription,
+          coordinates: e.coordinates,
+          route_id: routes[0].id,
+          sequence_order: e.sequenceOrder,
+          checklist_template: e.checklistTemplate,
+          technical_specs: e.technicalSpecs,
+          maintenance_docs: e.maintenanceDocs,
+        },
+      }),
+    ),
+  );
+
+  // Create schedule for today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  await prisma.schedule.create({
     data: {
-      name: 'Обход Котельного зала (Полный)',
-      zone: 'Энергоцех — Котельный зал',
-      estimated_duration_minutes: 45,
-      waypoints:[],
-      map_geojson: { type: 'FeatureCollection', features:[] },
-    }
+      worker_id: worker.id,
+      route_id: routes[0].id,
+      scheduled_date: today,
+      shift: 'MORNING',
+      created_by: manager.id,
+    },
   });
 
-  // 4. Создаем Оборудование на маршруте
-  await prisma.equipment.create({
-    data: {
-      name: 'Котел паровой КЕ-10',
-      code: 'EQ-001',
-      type: 'BOILER',
-      zone: 'Энергоцех — Котельный зал',
-      route_id: route.id,
-      sequence_order: 1,
-      coordinates: { x: 10, y: 20 },
-      checklist_template:[
-        { id: 'temp', name: 'Температура пара', min: 180, max: 220, unit: '°C' },
-        { id: 'press', name: 'Давление', min: 1.0, max: 1.4, unit: 'МПа' }
-      ]
-    }
-  });
-
-  console.log('✅ Демо-данные успешно загружены!');
-  console.log(`👨‍💼 Менеджер: manager@energoceh.ru / Demo1234!`);
-  console.log(`👷 Обходчик: ivanov@energoceh.ru / Demo1234!`);
+  console.log('✅ Database seeded!');
+  console.log(`📝 Demo Manager: ${DEMO_MANAGER.email} / ${DEMO_MANAGER.password}`);
+  console.log(`📝 Demo Worker: ${DEMO_WORKER.email} / ${DEMO_WORKER.password}`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
+  .then(async () => {
     await prisma.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
   });

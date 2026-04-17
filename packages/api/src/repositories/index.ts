@@ -16,7 +16,7 @@ export const repositories = {
   inspections: new InspectionRepository(prisma),
   checkpoints: new CheckpointRepository(prisma),
   defects: new DefectRepository(prisma),
-  files: new FileRepository(prisma),
+  files: new FileRepository('./uploads'),
 };
 
 export type Repositories = typeof repositories;

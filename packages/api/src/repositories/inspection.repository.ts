@@ -7,8 +7,8 @@ export class InspectionRepository {
     return this.prisma.inspection.findUnique({
       where: { id },
       include: {
-        checkpoints: { include: { equipment: true }, orderBy: { sequenceOrder: 'asc' } },
-        worker: { select: { id: true, name: true, employeeId: true } },
+        checkpoints: { include: { equipment: true }, orderBy: { sequence_order: 'asc' } },
+        worker: { select: { id: true, name: true, employee_id: true } },
         route: true,
         schedule: true,
         defects: true,
@@ -17,15 +17,15 @@ export class InspectionRepository {
   }
 
   findByOfflineSyncId(offlineSyncId: string) {
-    return this.prisma.inspection.findUnique({ where: { offlineSyncId } });
+    return this.prisma.inspection.findUnique({ where: { offline_sync_id: offlineSyncId } });
   }
 
   listForWorker(workerId: string, take = 20) {
     return this.prisma.inspection.findMany({
-      where: { workerId },
-      orderBy: { startedAt: 'desc' },
+      where: { worker_id: workerId },
+      orderBy: { started_at: 'desc' },
       take,
-      include: { route: true },
+      include: { route: { select: { id: true, name: true } } },
     });
   }
 
@@ -37,13 +37,13 @@ export class InspectionRepository {
   }) {
     return this.prisma.inspection.findMany({
       where: {
-        ...(filter?.workerId ? { workerId: filter.workerId } : {}),
+        ...(filter?.workerId ? { worker_id: filter.workerId } : {}),
         ...(filter?.status ? { status: filter.status } : {}),
         ...(filter?.from || filter?.to
-          ? { startedAt: { gte: filter?.from, lte: filter?.to } }
+          ? { started_at: { gte: filter?.from, lte: filter?.to } }
           : {}),
       },
-      orderBy: { startedAt: 'desc' },
+      orderBy: { started_at: 'desc' },
       include: {
         worker: { select: { id: true, name: true } },
         route: { select: { id: true, name: true } },
@@ -61,15 +61,15 @@ export class InspectionRepository {
   }) {
     return this.prisma.inspection.create({
       data: {
-        scheduleId: data.scheduleId,
-        workerId: data.workerId,
-        routeId: data.routeId,
-        totalCheckpoints: data.totalCheckpoints,
-        offlineSyncId: data.offlineSyncId,
+        schedule_id: data.scheduleId,
+        worker_id: data.workerId,
+        route_id: data.routeId,
+        total_checkpoints: data.totalCheckpoints,
+        offline_sync_id: data.offlineSyncId ?? null,
         checkpoints: {
           create: data.checkpointSeeds.map((s) => ({
-            equipmentId: s.equipmentId,
-            sequenceOrder: s.sequenceOrder,
+            equipment_id: s.equipmentId,
+            sequence_order: s.sequenceOrder,
           })),
         },
       },
@@ -81,8 +81,8 @@ export class InspectionRepository {
     return this.prisma.inspection.update({
       where: { id },
       data: {
-        completedCheckpoints: completedCount,
-        hasDefects,
+        completed_checkpoints: completedCount,
+        has_defects: hasDefects,
         status: 'IN_PROGRESS',
       },
     });
@@ -93,8 +93,8 @@ export class InspectionRepository {
       where: { id },
       data: {
         status: 'COMPLETED',
-        completedAt,
-        notes: notes ?? undefined,
+        completed_at: completedAt,
+        notes: notes ?? null,
       },
     });
   }
